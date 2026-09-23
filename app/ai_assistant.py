@@ -4,27 +4,32 @@ import json
 import os
 from openai import OpenAI
 from typing import List, Dict, Optional, Callable
-from app.utilities import my_file_write
+from app.utilities import my_file_write, get_json_in_file, get_text_in_file
+
+# from ollama import chat
+
 
 # Читаем конфиг ИИ-ассистента
-try:
-    # Получаем путь к директории (/app), где лежит текущий скрипт (main.py)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Получаем путь к JSON со студентами
-    path_to_json_config = os.path.join(script_dir, 'config.json')
-    with open(path_to_json_config, 'r', encoding='utf-8') as file:
-        json_str = file.read()
-        # print(json_str)
-        ai_config = json.loads(json_str)
+ai_config = get_json_in_file("app/config.json")
+# try:
+#     # Получаем путь к директории (/app), где лежит текущий скрипт (main.py)
+#     script_dir = os.path.dirname(os.path.abspath(__file__))
+#     # Получаем путь к JSON со студентами
+#     path_to_json_config = os.path.join(script_dir, 'config.json')
+#     with open(path_to_json_config, 'r', encoding='utf-8') as file:
+#         json_str = file.read()
+#         # print(json_str)
+#         ai_config = json.loads(json_str)
     # return ai_config
-except (TypeError, ValueError, IOError) as e:
-    print(f"Ошибка при чтении JSON из файла или преобразовании в список словарей: {e}")
+
+# except (TypeError, ValueError, IOError) as e:
+#     print(f"Ошибка при чтении JSON из файла или преобразовании в список словарей: {e}")
 
 # Определяем константы
-AI_URL_REQUEST = ai_config["base_url_request"]
-AI_URL = ai_config["base_url"]
-AI_KEY = ai_config["api_key"]
-AI_MODEL = ai_config["model"]
+AI_CURRENT_SET = ai_config["current_set"]   # текущий набор настроек
+AI_URL = ai_config[AI_CURRENT_SET]["base_url"]
+AI_KEY = ai_config[AI_CURRENT_SET]["api_key"]
+AI_MODEL = ai_config[AI_CURRENT_SET]["model"]
 
 client = OpenAI(
     base_url=AI_URL,
@@ -35,6 +40,8 @@ print(AI_URL, AI_MODEL)
 #
 # Использовать инструмент
 #
+# tool = get_json_in_file("app/tools.json")
+# print(tool)
 tools = [
     {
         "type": "function",
@@ -50,6 +57,13 @@ tools = [
             "name": "get_products",
             "description": "Получить перечень или список товаров из магазина, откуда можно понять какие типы товаров есть в наличии, и сколько их.",
             # "parameters": {}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_skill_table_formater",
+            "description": "Форматировать таблицу",
         }
     },
     {
@@ -78,46 +92,13 @@ messages = [
     }
 ]
 
-tools2 = [
-    {
-        "type": "function",
-        "function": {
-            "name": "create_event",
-            "description": "Создать событие в календаре",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "summary": {"type": "string"},
-                    "start_time": {"type": "string"},
-                    "end_time": {"type": "string"}
-                },
-                "required": ["summary", "start_time", "end_time"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "send_email",
-            "description": "Отправить email",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "to": {"type": "string"},
-                    "subject": {"type": "string"},
-                    "body": {"type": "string"}
-                },
-                "required": ["to", "subject", "body"]
-            }
-        }
-    }
-]
 def ai_model_list():
     return client.models.list()
 
 # для подключения к ИИ через Request
 def ai_connect_request(messages):
     # Определяем параметры запроса к ИИ
+    AI_URL_REQUEST = ai_config["current_set"]["base_url"] +""+ ai_config["current_set"]["route_request"]
     url = AI_URL_REQUEST
     headers = {
         "Authorization": "Bearer " + AI_KEY,
@@ -136,12 +117,14 @@ def ai_connect_request(messages):
 # для подключения к ИИ через OpenAi
 def ai_connect(messages):
     # messages = [{"role": "user", "content": "Какая текущая дата?"}]   # пробный промт
+
     response = client.chat.completions.create(
         model=AI_MODEL,
         messages=messages,
         tools=tools,
         stream=False
     )
+    # # return response.choices.message.content
     return response.choices[0].message.model_dump()
 
     # Пример ответа model_dump()
@@ -170,7 +153,7 @@ def ai_agent(promt):
             for tc in model_response["tool_calls"]:
                 tool_name = tc["function"]["name"]
                 tool_args = tc["function"]["arguments"]
-                result = execute_tool(tool_name, tool_args)    # todo: добавить аргумент "tool_args"
+                result = execute_tool(tool_name, tool_args)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
@@ -186,7 +169,8 @@ def ai_agent(promt):
     return assistant_msg
 
 
-def execute_tool(tool_name: str, tool_args: dict) -> str:    # todo: Добавить агрумент "tool_args: dict"
+def execute_tool(tool_name: str, tool_args: dict) -> str:
+    print("Tool Call: ",tool_name)
     if tool_name == "get_current_time":
         from datetime import datetime
         return datetime.now().isoformat()+" и счастье!"
@@ -196,6 +180,11 @@ def execute_tool(tool_name: str, tool_args: dict) -> str:    # todo: Добав�
         print(response.status_code)  # 200
         print(response.text)  # сырые данные ответа в виде строки
         return response.text
+    if tool_name == "get_skill_table_formater":
+        text = get_text_in_file("skills/table-formater/SKILL.md")
+        print(text)
+        # text = "Следуй инструкции: столбцы в таблице нужно расположить в следующем порядке: 'Цена', 'Наименование', 'Количество'. Для значений столбца 'Цена' нужно дописать слово 'рубликов'."
+        return text
     if tool_name == "put_products":
         headers = {
             "Content-Type": "application/json"
