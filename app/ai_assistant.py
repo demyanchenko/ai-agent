@@ -1,29 +1,17 @@
+# from tkinter.scrolledtext import example
+
 import requests
 import urllib3
 import json
 import os
 from openai import OpenAI
 from typing import List, Dict, Optional, Callable
-from app.utilities import my_file_write, get_json_in_file, get_text_in_file
+from app.utilities import my_file_write, get_json_in_file, get_text_in_file, get_skill_header_in_file
 
 # from ollama import chat
 
-
 # Читаем конфиг ИИ-ассистента
 ai_config = get_json_in_file("app/config.json")
-# try:
-#     # Получаем путь к директории (/app), где лежит текущий скрипт (main.py)
-#     script_dir = os.path.dirname(os.path.abspath(__file__))
-#     # Получаем путь к JSON со студентами
-#     path_to_json_config = os.path.join(script_dir, 'config.json')
-#     with open(path_to_json_config, 'r', encoding='utf-8') as file:
-#         json_str = file.read()
-#         # print(json_str)
-#         ai_config = json.loads(json_str)
-    # return ai_config
-
-# except (TypeError, ValueError, IOError) as e:
-#     print(f"Ошибка при чтении JSON из файла или преобразовании в список словарей: {e}")
 
 # Определяем константы
 AI_CURRENT_SET = ai_config["current_set"]   # текущий набор настроек
@@ -37,64 +25,54 @@ client = OpenAI(
 )
 print(AI_URL, AI_MODEL)
 
-#
-# Использовать инструмент
-#
-# tool = get_json_in_file("app/tools.json")
-# print(tool)
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_current_time",
-            "description": "Получить текущую дату и время в формате ISO.",
-            # "parameters": {}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_products",
-            "description": "Получить перечень или список товаров из магазина, откуда можно понять какие типы товаров есть в наличии, и сколько их.",
-            # "parameters": {}
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_skill_table_formater",
-            "description": "Форматировать таблицу",
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "put_products",
-            "description": "Добавить товар в магазин. Добавляется новая запись в БД postgreSQL.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "price": {"type": "Number"},
-                    "quantity": {"type": "integer"}
-                },
-                "required": ["title", "price", "quantity"]
-            }
-        }
-    },
-]
-
 # Базовые установки поведения ИИ
 messages = [
     {
         "role": "system",
-        "content": "Отвечай на русском языке, вежливо, и не придумывай факты. Если чего-то не знаешь, то так и скажи, что нет данных. Ответ отдавай в синтаксисе markdown без спец.символов html, типа \n"
+        "content": "Отвечай на русском языке, вежливо, и не придумывай факты. Если чего-то не знаешь, то так и скажи, что не хватает данных. Ответ отдавай в синтаксисе markdown без спец.символов html, типа \n"
     }
 ]
 
+#
+# Объявление инструментов (tool)
+#
+tools = get_json_in_file("app/tools.json")["tools"]
+# print(tools) # отладка
+
+
+#
+# Объявление скиллов (skil)
+#
+folder_path = "skills"
+skills = [item for item in os.listdir(folder_path) if os.path.isdir(os.path.join(folder_path, item))]
+# print("Каталоги:", skills)  # отладка
+content = "Тебе доступны скиллы перечисленные ниже, и ты можешь получить полный текст по каждому из них, если вызовешь инструмент 'get_skill' через tool_calls с параметром 'name'."
+for skill in skills:
+    header = get_skill_header_in_file(folder_path+"/"+skill+"/SKILL.md")
+    content += header
+    separator = 'description: '
+    skill_description = header.split(separator, 1)
+    # print(skill_description[1])
+    skill = skill.replace("-", "_")  # Замена символа
+    tools.append({
+            "type": "function",
+            "function": {
+                "name": "get_skill_"+skill,
+                "description": skill_description[1],
+            }
+        })
+print(tools)
+# print(messages) # отладка
+
+
+#
+# Обращение к ИИ
+#
+#
 def ai_model_list():
     return client.models.list()
 
+#
 # для подключения к ИИ через Request
 def ai_connect_request(messages):
     # Определяем параметры запроса к ИИ
@@ -168,23 +146,23 @@ def ai_agent(promt):
 
     return assistant_msg
 
-
+#
+# Запуск инструментов по механизму toolCall
+#
 def execute_tool(tool_name: str, tool_args: dict) -> str:
     print("Tool Call: ",tool_name)
+
     if tool_name == "get_current_time":
         from datetime import datetime
         return datetime.now().isoformat()+" и счастье!"
+
     if tool_name == "get_products":
         response = requests.get('http://localhost:8000/products')
         print(response.url)  # http://localhost:8000/products
         print(response.status_code)  # 200
-        print(response.text)  # сырые данные ответа в виде строки
+        # print(response.text)  # сырые данные ответа в виде строки
         return response.text
-    if tool_name == "get_skill_table_formater":
-        text = get_text_in_file("skills/table-formater/SKILL.md")
-        print(text)
-        # text = "Следуй инструкции: столбцы в таблице нужно расположить в следующем порядке: 'Цена', 'Наименование', 'Количество'. Для значений столбца 'Цена' нужно дописать слово 'рубликов'."
-        return text
+
     if tool_name == "put_products":
         headers = {
             "Content-Type": "application/json"
@@ -192,8 +170,30 @@ def execute_tool(tool_name: str, tool_args: dict) -> str:
         # tool_args = {"title":"Пырожников","price":1560,"quantity":100}
         response = requests.put('http://localhost:8000/product', json=json.loads(tool_args), headers=headers)
         # print(tool_args)  # 200
-        print(response.url)  # http://localhost:8000/product
+        print(response.url + " " + response.status_code)  # http://localhost:8000/product
         print(response.status_code)  # 200
         print(response.text)  # сырые данные ответа в виде строки
         return response.text
+
+    # if tool_name == "get_skill_table_formater":
+    #     text = get_text_in_file("skills/table-formater/SKILL.md")
+    #     print(text)
+    #     # text = "Следуй инструкции: столбцы в таблице нужно расположить в следующем порядке: 'Цена', 'Наименование', 'Количество'. Для значений столбца 'Цена' нужно дописать слово 'рубликов'."
+    #     return text
+
+    if tool_name[:9] == "get_skill":
+        # separator = 'get_skill_'
+        # skill_name = tool_name.split(separator, 1)
+        # print(skill_name[1])
+        # tool_name[0:10]
+        skill_name = tool_name[10:]  # 'get_skill_'
+        skill_name = skill_name.replace("_", "-")
+        skill_text = get_text_in_file("skills/"+skill_name+"/SKILL.md")
+        print("skills/"+skill_name+"/SKILL.md")
+        return skill_text
+
     return f"Инструмент {tool_name} не найден."
+
+# print("get_skill_table_formater"[:9])
+print("get_skill_toc_formater"[:9] == "get_skill")
+# print(execute_tool("get_skill_table_formater", ""))

@@ -1,0 +1,44 @@
+{
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_current_time",
+        "description": "Получить текущую дату и время в формате ISO."
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_products",
+        "description": "Получить перечень или список товаров из магазина, откуда можно понять какие типы товаров есть в наличии, и сколько их."
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "put_products",
+        "description": "Добавить товар в магазин. Добавляется новая запись в БД postgreSQL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "price": {
+              "type": "Number"
+            },
+            "quantity": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "title",
+            "price",
+            "quantity"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -39,3 +39,26 @@ def get_text_in_file(filename):
     except (TypeError, ValueError, IOError) as e:
         print(f"Ошибка при чтении файла: {e}")
         return None
+
+###
+# Извлечь шапку из SKILL.md
+# Пример:
+# ---
+# name: toc-generated
+# description: Use when the user asks to generate.
+# ---
+#
+def get_skill_header_in_file(filename):
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:
+            contents = file.read()
+        separator = '---'
+        result = contents.split(separator, 2)
+        # print(result[1])  # отладка
+        return result[1]
+        # with open(filename, 'r', encoding='utf-8') as file:
+        #     content = file.read()
+        # return content
+    except (TypeError, ValueError, IOError) as e:
+        print(f"Ошибка при чтении файла {filename}: {e}")
+        return None
