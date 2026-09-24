@@ -17,14 +17,6 @@ sys.path.append('./app')
 
 app = FastAPI()
 
-# Обращение к ИИ-агенту
-#
-@app.get("/ai")
-def send_ai_promt(promt: str | None = Query(default="Привет", max_length=1050)):
-    # print(ai_model_list())
-    message = ai_agent(promt)
-    return {"message": message}
-
 # Показать имеющиеся модели на сервере
 #
 @app.get("/ai/models")
@@ -33,27 +25,11 @@ def get_ai_models():
     return {"models": message}
 
 
-
-# Тестирование
+# Обращение к ИИ-агенту
 #
-@app.get("/test")
-def test_page(promt: str | None = Query(default="Привет", max_length=1050)):
+# todo: переделать запрос в POST
+@app.get("/ai")
+def send_ai_promt(promt: str | None = Query(default="Привет", max_length=1050)):
     # print(ai_model_list())
-    import requests
-    headers = {
-        "Content-Type": "application/json"
-    }
-    tool_args = {"title":"Пырожников","price":1560,"quantity":100}
-    response = requests.put('http://localhost:8000/product', json=tool_args, headers=headers)
-
-    # message = ai_agent(promt)
-    return response
-
-# Тестирование
-#
-@app.get("/print")
-def print_page(promt: str | None = Query(default="Привет", max_length=1050)):
-    # Пишем ответ в файл
-    my_file_write(promt, "output.md")
-
-    return "ok! "+promt
+    message = ai_agent(promt)
+    return {"message": message}
