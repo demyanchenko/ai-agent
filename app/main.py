@@ -10,7 +10,7 @@ from app.ai_assistant import ai_agent, ai_model_list
 # Добавляем внутренний каталог для импорта
 import sys
 
-from app.utilities import my_file_write
+from app.file_utils import my_file_write
 
 sys.path.append('./app')
 # sys.path.append('./app/ai')
